@@ -1,0 +1,290 @@
+/**
+ * Auth Service - Tích hợp với Backend API
+ * Xử lý authentication: login, register, logout
+ */
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+// ==================== Types ====================
+
+export interface User {
+  user_id: string;
+  user_name: string;
+  email: string;
+  full_name: string;
+  role: 'ADMIN' | 'TEACHER' | 'STUDENT';
+  avatar?: string;
+  gender?: 'MALE' | 'FEMALE';
+  phone_number?: string;
+  date_of_birth?: string;
+  created_at: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  user_name: string;
+  password: string;
+  full_name: string;
+  email: string;
+  role?: 'ADMIN' | 'TEACHER' | 'STUDENT';
+  date_of_birth?: string;
+  gender?: 'MALE' | 'FEMALE';
+  phone_number?: string;
+  avatar?: string;
+}
+
+export interface AuthResponse {
+  message: string;
+  user: User;
+  accessToken?: string;
+  refreshToken?: string;
+}
+
+export interface AuthResult {
+  success: boolean;
+  message?: string;
+  user?: User;
+  accessToken?: string;
+}
+
+// ==================== Auth Service ====================
+
+export class AuthService {
+  /**
+   * Login user
+   */
+  static async login(email: string, password: string): Promise<AuthResult> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+        credentials: 'include', // Include cookies
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return {
+          success: false,
+          message: errorData.message || 'Đăng nhập thất bại',
+        };
+      }
+
+      const data: AuthResponse = await response.json();
+
+      // Extract access token from response or cookies
+      const accessToken = data.accessToken || this.extractTokenFromCookies('access_token');
+      
+      if (accessToken) {
+        this.setAccessToken(accessToken);
+      }
+
+      // Save user info
+      this.setUser(data.user);
+
+      console.log('✅ Login successful:', data.user.user_name);
+
+      return {
+        success: true,
+        message: data.message,
+        user: data.user,
+        accessToken,
+      };
+    } catch (error: any) {
+      console.error('❌ Login error:', error);
+      return {
+        success: false,
+        message: error.message || 'Lỗi kết nối đến server',
+      };
+    }
+  }
+
+  /**
+   * Register new user
+   */
+  static async register(data: RegisterRequest): Promise<AuthResult> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...data,
+          role: data.role || 'STUDENT', // Default role
+        }),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return {
+          success: false,
+          message: errorData.message || 'Đăng ký thất bại',
+        };
+      }
+
+      const responseData: AuthResponse = await response.json();
+
+      // Extract access token
+      const accessToken = responseData.accessToken || this.extractTokenFromCookies('access_token');
+      
+      if (accessToken) {
+        this.setAccessToken(accessToken);
+      }
+
+      // Save user info
+      this.setUser(responseData.user);
+
+      console.log('✅ Register successful:', responseData.user.user_name);
+
+      return {
+        success: true,
+        message: responseData.message,
+        user: responseData.user,
+        accessToken,
+      };
+    } catch (error: any) {
+      console.error('❌ Register error:', error);
+      return {
+        success: false,
+        message: error.message || 'Lỗi kết nối đến server',
+      };
+    }
+  }
+
+  /**
+   * Logout user
+   */
+  static async logout(): Promise<void> {
+    try {
+      const token = this.getAccessToken();
+      
+      if (token) {
+        await fetch(`${API_BASE_URL}/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          credentials: 'include',
+        }).catch(err => console.error('Logout API error:', err));
+      }
+    } catch (error) {
+      console.error('❌ Logout error:', error);
+    } finally {
+      // Clear local storage regardless of API call result
+      this.clearAuth();
+      console.log('✅ Logged out');
+    }
+  }
+
+  /**
+   * Refresh access token
+   */
+  static async refreshToken(): Promise<string | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Token refresh failed');
+      }
+
+      const data = await response.json();
+      const newAccessToken = data.accessToken || this.extractTokenFromCookies('access_token');
+
+      if (newAccessToken) {
+        this.setAccessToken(newAccessToken);
+        return newAccessToken;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ Refresh token error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get current user from localStorage
+   */
+  static getCurrentUser(): User | null {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return null;
+
+    try {
+      return JSON.parse(userStr);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Check if user is authenticated
+   */
+  static isAuthenticated(): boolean {
+    return !!this.getAccessToken() && !!this.getCurrentUser();
+  }
+
+  /**
+   * Get access token from localStorage
+   */
+  static getAccessToken(): string | null {
+    return localStorage.getItem('accessToken');
+  }
+
+  /**
+   * Set access token to localStorage
+   */
+  static setAccessToken(token: string): void {
+    localStorage.setItem('accessToken', token);
+  }
+
+  /**
+   * Set user info to localStorage
+   */
+  static setUser(user: User): void {
+    localStorage.setItem('user', JSON.stringify(user));
+  }
+
+  /**
+   * Clear all auth data
+   */
+  static clearAuth(): void {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('user');
+    localStorage.removeItem('token'); // Legacy
+  }
+
+  /**
+   * Extract token from cookies (fallback)
+   */
+  private static extractTokenFromCookies(name: string): string | null {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) {
+      return parts.pop()?.split(';').shift() || null;
+    }
+    return null;
+  }
+
+  /**
+   * Get auth headers for API requests
+   */
+  static getAuthHeaders(): HeadersInit {
+    const token = this.getAccessToken();
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  }
+}
+
+// ==================== Export ====================
+export default AuthService;
+
