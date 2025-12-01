@@ -13,41 +13,97 @@ interface RecorderProps {
 export const Recorder = ({ expectedText, onRecordingComplete }: RecorderProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [transcript, setTranscript] = useState("");
+  const [confirmedText, setConfirmedText] = useState("");
+  const [partialText, setPartialText] = useState("");
   const [feedback, setFeedback] = useState<{
     accuracy: number;
     errors: string[];
     message: string;
   } | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const canSendRef = useRef<boolean>(false);
   const { toast } = useToast();
 
   const startRecording = async () => {
     try {
+      console.log("Starting recording...");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
+      console.log("Microphone stream obtained");
 
-      const audioChunks: Blob[] = [];
-      
-      mediaRecorder.ondataavailable = (event) => {
-        audioChunks.push(event.data);
+      const ws = new WebSocket(import.meta.env.VITE_STT_WS_URL || "ws://localhost:4001/ws/stt");
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log("WebSocket connected");
+        try {
+          const audioCtx = new AudioContext({ sampleRate: 16000 });
+          console.log(`AudioContext started. Rate: ${audioCtx.sampleRate}, State: ${audioCtx.state}`);
+          
+          audioCtxRef.current = audioCtx;
+          const source = audioCtx.createMediaStreamSource(stream);
+          sourceRef.current = source;
+          const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+          processorRef.current = processor;
+          
+          processor.onaudioprocess = (e) => {
+            const input = e.inputBuffer.getChannelData(0);
+            const pcm16 = floatTo16BitPCM(input);
+            if (ws.readyState === WebSocket.OPEN && canSendRef.current) {
+              ws.send(pcm16);
+            }
+          };
+          
+          source.connect(processor);
+          processor.connect(audioCtx.destination);
+          setIsRecording(true);
+          toast({ title: "Đang ghi âm", description: "Hãy đọc to và rõ ràng nhé!" });
+        } catch (err) {
+          console.error("Error setting up audio processing:", err);
+          toast({ title: "Lỗi", description: "Không thể khởi tạo xử lý âm thanh", variant: "destructive" });
+          ws.close();
+        }
       };
 
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-        await processRecording(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log("WS Message:", data.type);
+          if (data.type === "ready") {
+            console.log("Server ready, enabling audio send");
+            canSendRef.current = true;
+            return;
+          }
+          if (data.type === "partial") {
+            setPartialText(data.text);
+          } else if (data.type === "final") {
+            setConfirmedText((prev) => `${prev} ${data.text}`.trim());
+            setPartialText("");
+          } else if (data.type === "error") {
+            console.error("Server reported error:", data.message);
+            toast({ title: "Lỗi STT", description: data.message, variant: "destructive" });
+            setIsRecording(false);
+            cleanupAudio(stream);
+          }
+        } catch (e) {
+          console.error("Error parsing WS message:", e);
+        }
       };
 
-      mediaRecorder.start();
-      setIsRecording(true);
-      
-      toast({
-        title: "Đang ghi âm",
-        description: "Hãy đọc to và rõ ràng nhé!",
-      });
+      ws.onerror = (e) => {
+        console.error("WebSocket error:", e);
+        toast({ title: "Lỗi kết nối STT", description: "Không thể kết nối máy chủ STT.", variant: "destructive" });
+      };
+
+      ws.onclose = (e) => {
+        console.log("WebSocket closed", e.code, e.reason);
+        cleanupAudio(stream);
+        setIsRecording(false); // Ensure UI updates
+      };
     } catch (error) {
+      console.error("Error accessing microphone:", error);
       toast({
         title: "Lỗi",
         description: "Không thể truy cập microphone. Vui lòng cho phép quyền truy cập.",
@@ -57,47 +113,36 @@ export const Recorder = ({ expectedText, onRecordingComplete }: RecorderProps) =
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+    if (isRecording) {
       setIsRecording(false);
       setIsProcessing(true);
+      try { wsRef.current?.send(JSON.stringify({ type: "stop" })); } catch {}
+      wsRef.current?.close();
+      canSendRef.current = false;
+      setIsProcessing(false);
     }
   };
 
-  const processRecording = async (audioBlob: Blob) => {
-    // Mock STT API - In real app, send to backend
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate processing
+  // Utilities
+  const floatTo16BitPCM = (float32Array: Float32Array) => {
+    const buffer = new ArrayBuffer(float32Array.length * 2);
+    const view = new DataView(buffer);
+    for (let i = 0; i < float32Array.length; i++) {
+      let s = Math.max(-1, Math.min(1, float32Array[i]));
+      view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    return new Uint8Array(buffer);
+  };
 
-    // Mock transcript (in reality, this comes from STT API)
-    const mockTranscript = expectedText; // Simulate perfect reading
-    
-    // Mock assessment
-    const mockAccuracy = Math.floor(Math.random() * 20) + 80; // 80-100%
-    const words = expectedText.split(" ");
-    const errorCount = Math.floor((100 - mockAccuracy) / 10);
-    const mockErrors = words.slice(0, errorCount);
+  const cleanupAudio = (stream: MediaStream) => {
+    processorRef.current?.disconnect();
+    sourceRef.current?.disconnect();
+    audioCtxRef.current?.close();
+    stream.getTracks().forEach((t) => t.stop());
+  };
 
-    const mockFeedback = {
-      accuracy: mockAccuracy,
-      errors: mockErrors,
-      message: mockAccuracy >= 90 
-        ? "Tuyệt vời! Con đọc rất tốt! 🌟" 
-        : mockAccuracy >= 75 
-        ? "Tốt lắm! Chỉ cần luyện thêm một chút nữa thôi! 👍"
-        : "Cố gắng lên! Mỗi ngày con đều tiến bộ hơn! 💪"
-    };
-
-    setTranscript(mockTranscript);
-    setFeedback(mockFeedback);
-    setIsProcessing(false);
-    
-    onRecordingComplete?.(mockTranscript, mockAccuracy);
-
-    toast({
-      title: "Hoàn thành!",
-      description: `Độ chính xác: ${mockAccuracy}%`,
-      variant: mockAccuracy >= 80 ? "default" : "destructive",
-    });
+  const combinePartial = (prev: string, partial: string) => {
+    return `${prev} ${partial}`.trim();
   };
 
   return (
@@ -140,6 +185,15 @@ export const Recorder = ({ expectedText, onRecordingComplete }: RecorderProps) =
           : "Nhấn vào micro để bắt đầu ghi âm"}
       </p>
 
+      {(confirmedText || partialText) && (
+        <div className="bg-muted/30 p-4 rounded-lg">
+          <p className="text-sm font-medium mb-2">Văn bản bạn đã đọc:</p>
+          <p className="text-sm">
+            {confirmedText} <span className="text-muted-foreground">{partialText}</span>
+          </p>
+        </div>
+      )}
+
       {feedback && (
         <div className="space-y-4 pt-4 border-t">
           <div className={`p-4 rounded-lg ${
@@ -160,11 +214,6 @@ export const Recorder = ({ expectedText, onRecordingComplete }: RecorderProps) =
                 </div>
               </div>
             )}
-          </div>
-
-          <div className="bg-muted/30 p-4 rounded-lg">
-            <p className="text-sm font-medium mb-2">Văn bản bạn đã đọc:</p>
-            <p className="text-sm">{transcript}</p>
           </div>
         </div>
       )}
