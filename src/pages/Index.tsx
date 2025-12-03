@@ -21,12 +21,6 @@ const Index = () => {
                 Bắt đầu luyện đọc
               </Button>
             </Link>
-            <Link to="/simplify">
-              <Button size="lg" variant="secondary" className="gap-2 rounded-full shadow-lg hover:shadow-xl transition-shadow">
-                <Sparkles className="h-5 w-5" />
-                Đơn giản hóa văn bản
-              </Button>
-            </Link>
           </div>
         </div>
       </section>
@@ -55,16 +49,6 @@ const Index = () => {
           </Card>
 
           <Card className="p-6 space-y-4 hover:shadow-lg transition-shadow animate-slide-up border-2" style={{ animationDelay: "0.2s" }}>
-            <div className="bg-accent/10 rounded-full p-4 w-fit">
-              <FileText className="h-8 w-8 text-accent" />
-            </div>
-            <h3 className="text-xl font-semibold">Đơn giản hóa AI</h3>
-            <p className="text-muted-foreground">
-              AI giúp biến đổi văn bản phức tạp thành câu từ dễ hiểu hơn cho trẻ
-            </p>
-          </Card>
-
-          <Card className="p-6 space-y-4 hover:shadow-lg transition-shadow animate-slide-up border-2" style={{ animationDelay: "0.3s" }}>
             <div className="bg-success/10 rounded-full p-4 w-fit">
               <BarChart3 className="h-8 w-8 text-success" />
             </div>
@@ -74,7 +58,7 @@ const Index = () => {
             </p>
           </Card>
 
-          <Card className="p-6 space-y-4 hover:shadow-lg transition-shadow animate-slide-up border-2" style={{ animationDelay: "0.4s" }}>
+          <Card className="p-6 space-y-4 hover:shadow-lg transition-shadow animate-slide-up border-2" style={{ animationDelay: "0.3s" }}>
             <div className="bg-warning/10 rounded-full p-4 w-fit">
               <Sparkles className="h-8 w-8 text-warning" />
             </div>
@@ -84,7 +68,7 @@ const Index = () => {
             </p>
           </Card>
 
-          <Card className="p-6 space-y-4 hover:shadow-lg transition-shadow animate-slide-up border-2" style={{ animationDelay: "0.5s" }}>
+          <Card className="p-6 space-y-4 hover:shadow-lg transition-shadow animate-slide-up border-2" style={{ animationDelay: "0.4s" }}>
             <div className="bg-primary/10 rounded-full p-4 w-fit">
               <BookOpen className="h-8 w-8 text-primary" />
             </div>

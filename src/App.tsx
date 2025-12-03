@@ -8,7 +8,6 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Read from "./pages/Read";
-import Simplify from "./pages/Simplify";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -43,14 +42,6 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Read />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/simplify"
-              element={
-                <ProtectedRoute>
-                  <Simplify />
                 </ProtectedRoute>
               }
             />

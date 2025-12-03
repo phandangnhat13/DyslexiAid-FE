@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Volume2, Square } from "lucide-react";
+import { Volume2, Square, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ReadingService } from "@/services/readingService";
 
 interface ReaderProps {
   text: string;
@@ -11,74 +12,96 @@ interface ReaderProps {
 
 export const Reader = ({ text, onComplete }: ReaderProps) => {
   const [isReading, setIsReading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [currentWordIndex, setCurrentWordIndex] = useState(-1);
   const { toast } = useToast();
   const words = text.split(" ");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Cleanup speech synthesis on unmount
+    // Cleanup on unmount
     return () => {
-      window.speechSynthesis.cancel();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
     };
   }, []);
 
-  const startReading = () => {
-    if (!('speechSynthesis' in window)) {
-      toast({
-        title: "Không hỗ trợ",
-        description: "Trình duyệt của bạn không hỗ trợ tính năng đọc văn bản",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-    setIsReading(true);
-    setCurrentWordIndex(0);
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'vi-VN';
-    utterance.rate = 0.8; // Đọc chậm hơn để trẻ dễ theo dõi
+  const startReading = async () => {
+    setIsLoading(true);
     
-    // Simulate word-by-word highlighting
-    const wordDuration = 60000 / (120 * words.length); // Approximate duration per word
-    let wordIndex = 0;
-    
-    const interval = setInterval(() => {
-      if (wordIndex < words.length) {
-        setCurrentWordIndex(wordIndex);
-        wordIndex++;
-      } else {
-        clearInterval(interval);
+    try {
+      const audio = await ReadingService.playText(text);
+      
+      if (!audio) {
+        throw new Error('Failed to get audio');
+      }
+
+      audioRef.current = audio;
+      setIsReading(true);
+      setIsLoading(false);
+      setCurrentWordIndex(0);
+
+      // Get audio duration and calculate word timing
+      audio.onloadedmetadata = () => {
+        const duration = audio.duration * 1000; // Convert to ms
+        const wordDuration = duration / words.length;
+        let wordIndex = 0;
+
+        intervalRef.current = setInterval(() => {
+          if (wordIndex < words.length) {
+            setCurrentWordIndex(wordIndex);
+            wordIndex++;
+          } else {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+          }
+        }, wordDuration);
+      };
+
+      audio.onended = () => {
+        if (intervalRef.current) clearInterval(intervalRef.current);
         setCurrentWordIndex(-1);
         setIsReading(false);
+        audioRef.current = null;
         onComplete?.();
-      }
-    }, wordDuration);
+      };
 
-    utterance.onend = () => {
-      clearInterval(interval);
-      setCurrentWordIndex(-1);
-      setIsReading(false);
-      onComplete?.();
-    };
+      audio.onerror = () => {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        setIsReading(false);
+        setCurrentWordIndex(-1);
+        audioRef.current = null;
+        toast({
+          title: "Lỗi",
+          description: "Không thể đọc văn bản. Vui lòng thử lại.",
+          variant: "destructive",
+        });
+      };
 
-    utterance.onerror = () => {
-      clearInterval(interval);
-      setIsReading(false);
-      setCurrentWordIndex(-1);
+    } catch (error) {
+      console.error('TTS Error:', error);
+      setIsLoading(false);
       toast({
         title: "Lỗi",
-        description: "Không thể đọc văn bản. Vui lòng thử lại.",
+        description: "Không thể tải giọng đọc. Vui lòng thử lại.",
         variant: "destructive",
       });
-    };
-
-    window.speechSynthesis.speak(utterance);
+    }
   };
 
   const stopReading = () => {
-    window.speechSynthesis.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
     setIsReading(false);
     setCurrentWordIndex(-1);
   };
@@ -91,8 +114,14 @@ export const Reader = ({ text, onComplete }: ReaderProps) => {
           onClick={isReading ? stopReading : startReading}
           variant={isReading ? "destructive" : "default"}
           className="gap-2 rounded-full"
+          disabled={isLoading}
         >
-          {isReading ? (
+          {isLoading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Đang tải...
+            </>
+          ) : isReading ? (
             <>
               <Square className="h-4 w-4" />
               Dừng lại
