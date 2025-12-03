@@ -2,8 +2,9 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Volume2, ChevronLeft, ChevronRight, X, CheckCircle2, RotateCw } from "lucide-react";
+import { Volume2, ChevronLeft, ChevronRight, X, CheckCircle2, RotateCw, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ReadingService } from "@/services/readingService";
 
 interface FlashcardProps {
   words: string[];
@@ -16,28 +17,47 @@ export const Flashcard = ({ words, onComplete, onClose }: FlashcardProps) => {
   const [masteredWords, setMasteredWords] = useState<Set<number>>(new Set());
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const dragStartX = useRef(0);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
 
   const currentWord = words[currentIndex];
   const progress = ((currentIndex + 1) / words.length) * 100;
   const totalMastered = masteredWords.size;
 
-  const speakWord = () => {
-    if (!('speechSynthesis' in window)) {
-      toast({
-        title: "Không hỗ trợ",
-        description: "Trình duyệt không hỗ trợ đọc văn bản",
-        variant: "destructive",
-      });
-      return;
+  const speakWord = async () => {
+    // Stop any currently playing audio
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
     }
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(currentWord);
-    utterance.lang = 'vi-VN';
-    utterance.rate = 0.7; // Đọc chậm để học
-    window.speechSynthesis.speak(utterance);
+    setIsSpeaking(true);
+    try {
+      const audio = await ReadingService.playText(currentWord);
+      if (audio) {
+        currentAudioRef.current = audio;
+        audio.onended = () => {
+          setIsSpeaking(false);
+          currentAudioRef.current = null;
+        };
+        audio.onerror = () => {
+          setIsSpeaking(false);
+          currentAudioRef.current = null;
+        };
+      } else {
+        setIsSpeaking(false);
+      }
+    } catch (error) {
+      console.error('TTS Error:', error);
+      setIsSpeaking(false);
+      toast({
+        title: "Lỗi",
+        description: "Không thể phát âm. Vui lòng thử lại.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleNext = () => {
@@ -222,9 +242,14 @@ export const Flashcard = ({ words, onComplete, onClose }: FlashcardProps) => {
                     variant="default"
                     size="lg"
                     className="gap-2 rounded-full shadow-lg"
+                    disabled={isSpeaking}
                   >
-                    <Volume2 className="h-5 w-5" />
-                    Nghe phát âm
+                    {isSpeaking ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Volume2 className="h-5 w-5" />
+                    )}
+                    {isSpeaking ? "Đang phát..." : "Nghe phát âm"}
                   </Button>
 
                   {isCurrentMastered && (
