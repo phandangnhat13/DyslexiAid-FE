@@ -1,10 +1,17 @@
 /**
  * Lesson Types - Re-export from service for backward compatibility
  * Dữ liệu bài học giờ được lấy từ API qua LessonService
+ * 
+ * Quy định số từ theo độ khó:
+ * - Dễ (EASY): 10-30 từ
+ * - Trung bình (MEDIUM): 25-60 từ
+ * - Khó (HARD): 50+ từ
  */
 
-// Re-export types from service
-export type { Lesson, LessonWithProgress } from '@/services/lessonService';
+export type { Lesson, LessonWithProgress, WordCountRange } from '@/services/lessonService';
+
+// Re-export word count constants
+export { WORD_COUNT_RANGES, getDifficultyInfo, getWordCountLabel } from '@/constants/word-count.constants';
 
 // Legacy export - Dữ liệu tĩnh (fallback khi API không hoạt động)
 export interface LessonLegacy {

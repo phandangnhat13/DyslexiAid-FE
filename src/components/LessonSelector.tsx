@@ -8,6 +8,7 @@ import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from "lucide-react";
 import { Lesson, LessonWithProgress } from "@/services/lessonService";
+import { WORD_COUNT_RANGES, getDifficultyInfo, getWordCountLabel } from "@/constants/word-count.constants";
 
 interface LessonSelectorProps {
   lessons: (Lesson | LessonWithProgress)[];
@@ -104,16 +105,8 @@ export const LessonSelector = ({
   };
 
   const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case "Dễ":
-        return "bg-success/10 text-success border-success/30";
-      case "Trung bình":
-        return "bg-warning/10 text-warning border-warning/30";
-      case "Khó":
-        return "bg-destructive/10 text-destructive border-destructive/30";
-      default:
-        return "bg-muted/10 text-muted-foreground";
-    }
+    const info = getDifficultyInfo(difficulty);
+    return info?.color || "bg-muted/10 text-muted-foreground";
   };
 
   // Count completed for each level
@@ -310,11 +303,12 @@ export const LessonSelector = ({
                       <Badge 
                         variant="outline" 
                         className={`${getDifficultyColor(lesson.difficulty)} text-xs`}
+                        title={`Yêu cầu: ${getWordCountLabel(lesson.difficulty)}`}
                       >
-                        {lesson.difficulty}
+                        {lesson.difficulty} ({getWordCountLabel(lesson.difficulty)})
                       </Badge>
                       <Badge variant="outline" className="text-xs">
-                        {lesson.wordCount} từ
+                        📝 {lesson.wordCount} từ
                       </Badge>
                     </div>
 
@@ -441,6 +435,39 @@ export const LessonSelector = ({
         </div>
       )}
 
+      {/* Word Count Guide */}
+      <Card className="p-6 bg-gradient-to-r from-primary/5 via-secondary/5 to-accent/5 border-2">
+        <h3 className="font-semibold mb-4 text-lg flex items-center gap-2">
+          📊 Quy định độ khó theo số từ
+        </h3>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className={`p-3 rounded-lg ${WORD_COUNT_RANGES.EASY.color} border`}>
+            <div className="flex items-center gap-2 mb-1">
+              <span>{WORD_COUNT_RANGES.EASY.emoji}</span>
+              <span className="font-semibold">{WORD_COUNT_RANGES.EASY.labelVi}</span>
+            </div>
+            <p className="text-sm font-medium">{WORD_COUNT_RANGES.EASY.label}</p>
+            <p className="text-xs opacity-80 mt-1">{WORD_COUNT_RANGES.EASY.description}</p>
+          </div>
+          <div className={`p-3 rounded-lg ${WORD_COUNT_RANGES.MEDIUM.color} border`}>
+            <div className="flex items-center gap-2 mb-1">
+              <span>{WORD_COUNT_RANGES.MEDIUM.emoji}</span>
+              <span className="font-semibold">{WORD_COUNT_RANGES.MEDIUM.labelVi}</span>
+            </div>
+            <p className="text-sm font-medium">{WORD_COUNT_RANGES.MEDIUM.label}</p>
+            <p className="text-xs opacity-80 mt-1">{WORD_COUNT_RANGES.MEDIUM.description}</p>
+          </div>
+          <div className={`p-3 rounded-lg ${WORD_COUNT_RANGES.HARD.color} border`}>
+            <div className="flex items-center gap-2 mb-1">
+              <span>{WORD_COUNT_RANGES.HARD.emoji}</span>
+              <span className="font-semibold">{WORD_COUNT_RANGES.HARD.labelVi}</span>
+            </div>
+            <p className="text-sm font-medium">{WORD_COUNT_RANGES.HARD.label}</p>
+            <p className="text-xs opacity-80 mt-1">{WORD_COUNT_RANGES.HARD.description}</p>
+          </div>
+        </div>
+      </Card>
+
       {/* Tips */}
       <Card className="p-6 bg-gradient-to-r from-accent/10 to-secondary/10 border-accent/20">
         <h3 className="font-semibold mb-3 text-lg flex items-center gap-2">
@@ -448,7 +475,7 @@ export const LessonSelector = ({
           💡 Mẹo học tập hiệu quả
         </h3>
         <ul className="space-y-2 text-sm text-muted-foreground list-disc list-inside">
-          <li>Bắt đầu từ bài dễ để làm quen với cách luyện tập</li>
+          <li>Bắt đầu từ bài dễ ({WORD_COUNT_RANGES.EASY.label}) để làm quen với cách luyện tập</li>
           <li>Luyện mỗi ngày 15-20 phút để tiến bộ đều đặn</li>
           <li>Nghe kỹ cách phát âm trước khi tự đọc</li>
           <li>Đừng vội, hãy đọc chậm và rõ ràng</li>

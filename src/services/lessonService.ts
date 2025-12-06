@@ -1,63 +1,12 @@
-/**
- * Lesson Service - Tích hợp với Backend API
- * Xử lý lessons: lấy danh sách, lấy theo level, cập nhật tiến trình
- */
+import { fallbackLessons } from "@/data/lessons";
+import { API_CONFIG, getApiUrl } from "@/config/api.config";
 
-import AuthService from './authService';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-
-/**
- * Helper function to make authenticated requests with auto token refresh
- */
-async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
-  const headers = {
-    'Content-Type': 'application/json',
-    ...AuthService.getAuthHeaders(),
-    ...options.headers,
-  };
-
-  let response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: 'include',
-  });
-
-  // If unauthorized, try to refresh token and retry
-  if (response.status === 401) {
-    console.log('🔄 Token expired, attempting refresh...');
-    const newToken = await AuthService.refreshToken();
-    
-    if (newToken) {
-      console.log('✅ Token refreshed, retrying request...');
-      // Retry with new token
-      response = await fetch(url, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...AuthService.getAuthHeaders(),
-          ...options.headers,
-        },
-        credentials: 'include',
-      });
-    } else {
-      console.log('❌ Token refresh failed');
-      // Clear auth and redirect to login
-      AuthService.clearAuth();
-      window.location.href = '/login';
-    }
-  }
-
-  return response;
-}
-
-// ==================== Types ====================
-
+// ==================== TYPES ====================
 export interface Lesson {
   id: number;
   title: string;
   level: number;
-  difficulty: "Dễ" | "Trung bình" | "Khó";
+  difficulty: string;
   text: string;
   wordCount: number;
   description: string;
@@ -68,243 +17,226 @@ export interface LessonWithProgress extends Lesson {
   isCompleted: boolean;
   bestAccuracy: number;
   attemptCount: number;
+  lastAttemptDate?: string;
 }
 
-export interface UserProgress {
-  lessonId: number;
-  isCompleted: boolean;
-  bestAccuracy: number;
-  attemptCount: number;
-  totalScore: number;
-  lastAttemptAt: string | null;
+export interface WordCountRange {
+  label: string;
+  labelVi: string;
+  min: number;
+  max: number;
+  description: string;
+  color: string;
+  emoji: string;
 }
 
-export interface UserStats {
-  totalLessons: number;
-  completedLessons: number;
-  completionRate: number;
-  totalAttempts: number;
-  averageAccuracy: number;
-  bestAccuracy: number;
-}
-
-export interface UpdateProgressResponse {
-  message: string;
+export interface ProgressUpdateResult {
   isCompleted: boolean;
   bestAccuracy: number;
   attemptCount: number;
   isNewBest: boolean;
 }
 
-// ==================== Lesson Service ====================
-
-export class LessonService {
-  /**
-   * Lấy tất cả bài học (public - không cần auth)
-   */
-  static async getAllLessons(): Promise<Lesson[]> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/lessons`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Không thể tải danh sách bài học');
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('❌ Get lessons error:', error);
-      throw error;
+// ==================== SERVICE CLASS ====================
+class LessonServiceClass {
+  private async fetchWithAuth(url: string, options: RequestInit = {}) {
+    // Sử dụng AuthService để lấy token (đúng key: 'accessToken')
+    const token = localStorage.getItem('accessToken');
+    
+    // Debug: Check all localStorage keys
+    console.log('[LessonService] Checking localStorage for tokens...');
+    console.log('[LessonService] accessToken:', token ? '✅ Found' : '❌ Not found');
+    console.log('[LessonService] All localStorage keys:', Object.keys(localStorage));
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+      console.log(`[LessonService] ✅ Making authenticated request to: ${url}`);
+      console.log(`[LessonService] Token preview: ${token.substring(0, 20)}...`);
+    } else {
+      console.error(`[LessonService] ❌ No token found for request: ${url}`);
+      console.error(`[LessonService] Available localStorage keys:`, Object.keys(localStorage));
     }
+    
+    return fetch(url, { ...options, headers, credentials: 'include' });
   }
 
-  /**
-   * Lấy bài học theo level (public)
-   */
-  static async getLessonsByLevel(level: number): Promise<Lesson[]> {
+  async getAllLessons(): Promise<Lesson[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/lessons/level/${level}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
+      const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.LESSONS));
+      
       if (!response.ok) {
-        throw new Error('Không thể tải bài học theo level');
+        throw new Error('Failed to fetch lessons');
       }
-
-      return await response.json();
+      
+      const data = await response.json();
+      console.log('📚 Fetched lessons from API:', data.length);
+      return data;
     } catch (error) {
-      console.error('❌ Get lessons by level error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Lấy bài học theo ID (public)
-   */
-  static async getLessonById(id: number): Promise<Lesson> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/lessons/${id}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Không tìm thấy bài học');
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('❌ Get lesson by ID error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Lấy tất cả bài học kèm tiến trình của user (cần auth)
-   */
-  static async getLessonsWithProgress(): Promise<LessonWithProgress[]> {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/lessons/with-progress/all`, {
-        method: 'GET',
-      });
-
-      if (!response.ok) {
-        // Nếu chưa đăng nhập, trả về lessons không có progress
-        if (response.status === 401) {
-          const lessons = await this.getAllLessons();
-          return lessons.map(lesson => ({
-            ...lesson,
-            isCompleted: false,
-            bestAccuracy: 0,
-            attemptCount: 0,
-          }));
-        }
-        throw new Error('Không thể tải bài học');
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('❌ Get lessons with progress error:', error);
-      // Fallback: lấy lessons không có progress
-      const lessons = await this.getAllLessons();
-      return lessons.map(lesson => ({
+      console.error('Error fetching lessons, using fallback:', error);
+      // Fallback to local data if API fails
+      return fallbackLessons.map(lesson => ({
         ...lesson,
-        isCompleted: false,
-        bestAccuracy: 0,
-        attemptCount: 0,
+        difficulty: lesson.difficulty as string,
       }));
     }
   }
 
-  /**
-   * Lấy tiến trình của user cho một bài học
-   */
-  static async getProgress(lessonId: number): Promise<UserProgress> {
+  async getLessonsWithProgress(): Promise<LessonWithProgress[]> {
     try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/lessons/progress/${lessonId}`, {
-        method: 'GET',
-      });
-
-      if (!response.ok) {
-        throw new Error('Không thể tải tiến trình');
+      const token = localStorage.getItem('accessToken');
+      
+      if (token) {
+        // User is authenticated - fetch from API with progress
+        const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.LESSONS_WITH_PROGRESS));
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📚 Fetched lessons with progress from API:', data.length);
+          return data;
+        }
       }
-
-      return await response.json();
+      
+      // Not authenticated or API failed - use local data
+      console.log('📚 Using local lessons data');
+      const lessons = await this.getAllLessons();
+      const savedProgress = JSON.parse(localStorage.getItem('lessonProgress') || '{}');
+      const savedCompleted = JSON.parse(localStorage.getItem('completedLessons') || '[]');
+      
+      return lessons.map(lesson => {
+        const progress = savedProgress[lesson.id];
+        return {
+          ...lesson,
+          isCompleted: progress?.isCompleted || savedCompleted.includes(lesson.id) || false,
+          bestAccuracy: progress?.bestAccuracy || 0,
+          attemptCount: progress?.attemptCount || 0,
+          lastAttemptDate: progress?.lastAttemptDate,
+        };
+      });
     } catch (error) {
-      console.error('❌ Get progress error:', error);
+      console.error('Error fetching lessons with progress:', error);
+      return [];
+    }
+  }
+
+  async updateProgress(lessonId: number, accuracy: number): Promise<ProgressUpdateResult> {
+    try {
+      const token = localStorage.getItem('accessToken');
+      
+      if (token) {
+        // User is authenticated - save to API
+        const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.UPDATE_PROGRESS), {
+          method: 'POST',
+          body: JSON.stringify({
+            lesson_id: lessonId,
+            accuracy: accuracy,
+          }),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📊 Progress saved to API:', data);
+          return data;
+        }
+      }
+      
+      // Fallback to localStorage
+      console.log('📊 Saving progress to localStorage');
+      const savedProgress = JSON.parse(localStorage.getItem('lessonProgress') || '{}');
+      const savedCompleted = JSON.parse(localStorage.getItem('completedLessons') || '[]');
+      
+      const currentProgress = savedProgress[lessonId] || {
+        bestAccuracy: 0,
+        attemptCount: 0,
+        isCompleted: false,
+      };
+      
+      const newBestAccuracy = Math.max(currentProgress.bestAccuracy, accuracy);
+      const newAttemptCount = currentProgress.attemptCount + 1;
+      const isCompleted = currentProgress.isCompleted || accuracy >= 80;
+      const isNewBest = newBestAccuracy > currentProgress.bestAccuracy;
+      
+      savedProgress[lessonId] = {
+        bestAccuracy: newBestAccuracy,
+        attemptCount: newAttemptCount,
+        isCompleted,
+        lastAttemptDate: new Date().toISOString(),
+      };
+      localStorage.setItem('lessonProgress', JSON.stringify(savedProgress));
+      
+      if (isCompleted && !savedCompleted.includes(lessonId)) {
+        savedCompleted.push(lessonId);
+        localStorage.setItem('completedLessons', JSON.stringify(savedCompleted));
+      }
+      
+      return { isCompleted, bestAccuracy: newBestAccuracy, attemptCount: newAttemptCount, isNewBest };
+    } catch (error) {
+      console.error('Error updating progress:', error);
       throw error;
     }
   }
 
-  /**
-   * Lấy tất cả tiến trình của user
-   */
-  static async getAllProgress(): Promise<UserProgress[]> {
+  async getLessonById(id: number): Promise<Lesson | null> {
     try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/lessons/progress/all`, {
-        method: 'GET',
-      });
-
-      if (!response.ok) {
-        throw new Error('Không thể tải tiến trình');
+      const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.LESSON_BY_ID(id)));
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data;
       }
-
-      return await response.json();
+      
+      // Fallback
+      const lesson = fallbackLessons.find(l => l.id === id);
+      if (!lesson) return null;
+      return { ...lesson, difficulty: lesson.difficulty as string };
     } catch (error) {
-      console.error('❌ Get all progress error:', error);
-      throw error;
+      console.error('Error fetching lesson by ID:', error);
+      return null;
     }
   }
 
-  /**
-   * Cập nhật tiến trình sau khi hoàn thành bài đọc
-   */
-  static async updateProgress(lessonId: number, accuracy: number): Promise<UpdateProgressResponse> {
+  async getRecommendedPractice(): Promise<Lesson[]> {
     try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/lessons/progress`, {
-        method: 'POST',
-        body: JSON.stringify({
-          lesson_id: lessonId,
-          accuracy: accuracy,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Không thể cập nhật tiến trình');
+      // Kiểm tra token trước khi gọi API (đúng key: 'accessToken')
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.warn('⚠️ No access token found. User might need to login.');
+        return [];
       }
-
-      return await response.json();
-    } catch (error) {
-      console.error('❌ Update progress error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Lấy thống kê tổng quan của user
-   */
-  static async getUserStats(): Promise<UserStats> {
-    try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/lessons/stats/me`, {
-        method: 'GET',
-      });
-
+      
+      const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.RECOMMENDED_PRACTICE));
+      
       if (!response.ok) {
-        throw new Error('Không thể tải thống kê');
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error(`❌ API Error ${response.status}: ${errorText}`);
+        
+        // If 401 Unauthorized, token might be invalid or expired
+        if (response.status === 401 || response.status === 403) {
+          console.warn('⚠️ Authentication error. Token might be invalid or expired.');
+          // Clear invalid token
+          localStorage.removeItem('accessToken');
+          // Optionally redirect to login (but ProtectedRoute should handle this)
+        }
+        
+        throw new Error(`Failed to fetch recommended practice: ${response.status} ${response.statusText}`);
       }
-
-      return await response.json();
+      
+      const data = await response.json();
+      console.log('✨ Fetched recommended practice from API:', data.length);
+      return data || [];
     } catch (error) {
-      console.error('❌ Get user stats error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Lấy danh sách ID các bài đã hoàn thành
-   */
-  static async getCompletedLessonIds(): Promise<number[]> {
-    try {
-      const progressList = await this.getAllProgress();
-      return progressList
-        .filter(p => p.isCompleted)
-        .map(p => p.lessonId);
-    } catch (error) {
-      console.error('❌ Get completed lessons error:', error);
+      console.error('Error fetching recommended practice:', error);
+      console.error('Error details:', error instanceof Error ? error.message : error);
+      // Fallback: return empty array
       return [];
     }
   }
 }
 
+// ==================== EXPORT ====================
+const LessonService = new LessonServiceClass();
 export default LessonService;
-
