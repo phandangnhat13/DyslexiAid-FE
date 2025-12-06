@@ -242,8 +242,9 @@ const Read = () => {
 
   // Show lesson practice
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="space-y-8 animate-fade-in">
+    <div className="relative">
+      <div className="container mx-auto px-4 pt-4 pb-8 max-w-4xl">
+        <div className="space-y-6 animate-fade-in">
         {/* Header with back button */}
         <div className="flex items-center gap-4">
           <Button
@@ -256,6 +257,13 @@ const Read = () => {
             Quay lại
           </Button>
           <div className="flex-1" />
+        </div>
+
+        {/* Badge cho biết đây là lộ trình bài tập */}
+        <div className="flex items-center justify-center">
+          <div className="bg-gradient-to-r from-primary/10 to-secondary/10 px-4 py-2 rounded-full border-2 border-primary/20">
+            <span className="text-sm font-medium text-primary">📖 Lộ trình bài tập</span>
+          </div>
         </div>
 
         {/* Lesson Info */}
@@ -289,8 +297,12 @@ const Read = () => {
             onStartPractice={handleStartPractice}
           />
         )}
+        </div>
+      </div>
 
-        <div className="bg-gradient-to-r from-primary/5 via-secondary/5 to-accent/5 p-6 rounded-lg border border-primary/10">
+      {/* Sticky sidebar - phần hướng dẫn, fixed bên phải, căn giữa theo chiều dọc */}
+      <div className="hidden lg:block fixed right-8 top-1/2 -translate-y-1/2 w-72 z-10">
+        <div className="bg-gradient-to-r from-primary/5 via-secondary/5 to-accent/5 p-6 rounded-lg border border-primary/10 shadow-lg">
           <h3 className="font-semibold mb-3 text-lg">📚 Hướng dẫn luyện tập:</h3>
           <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
             <li>Nhấn nút "Nghe đọc" để nghe máy đọc văn bản</li>

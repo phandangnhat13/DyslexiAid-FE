@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { BookOpen, BarChart3, Home, LogOut, User } from "lucide-react";
+import { BookOpen, BarChart3, Home, LogOut, User, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 const navItems = [
   { title: "Trang chủ", path: "/", icon: Home },
   { title: "Luyện đọc", path: "/read", icon: BookOpen },
+  { title: "Bài tập đề xuất", path: "/recommendations", icon: Sparkles },
   { title: "Tiến trình", path: "/dashboard", icon: BarChart3 },
 ];
 

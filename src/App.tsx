@@ -8,6 +8,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Read from "./pages/Read";
+import Recommendations from "./pages/Recommendations";
+import Practice from "./pages/Practice";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -42,6 +44,22 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Read />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/recommendations"
+              element={
+                <ProtectedRoute>
+                  <Recommendations />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/practice/:lessonId"
+              element={
+                <ProtectedRoute>
+                  <Practice />
                 </ProtectedRoute>
               }
             />

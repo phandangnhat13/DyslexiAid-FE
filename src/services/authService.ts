@@ -89,11 +89,39 @@ export class AuthService {
 
       const data: AuthResponse = await response.json();
 
-      // Extract access token from response or cookies
-      const accessToken = data.accessToken || this.extractTokenFromCookies('access_token');
+      // Backend sets token in cookies with name 'access_token'
+      // Extract from cookies first (backend sends it as httpOnly cookie)
+      let accessToken = this.extractTokenFromCookies('access_token');
+      
+      // Fallback: check response body (in case backend sends it there too)
+      if (!accessToken && data.accessToken) {
+        accessToken = data.accessToken;
+      }
+      
+      console.log('[AuthService] Login response data:', {
+        hasAccessTokenInResponse: !!data.accessToken,
+        hasCookieToken: !!this.extractTokenFromCookies('access_token'),
+        cookiesAvailable: document.cookie.length > 0,
+        allCookies: document.cookie,
+        tokenLength: accessToken?.length,
+      });
       
       if (accessToken) {
         this.setAccessToken(accessToken);
+        console.log('[AuthService] ✅ Token saved to localStorage with key: accessToken');
+        console.log('[AuthService] Token preview:', accessToken.substring(0, 20) + '...');
+        
+        // Verify token was saved
+        const savedToken = localStorage.getItem('accessToken');
+        console.log('[AuthService] Token verification:', savedToken ? '✅ Saved successfully' : '❌ Failed to save');
+        if (savedToken) {
+          console.log('[AuthService] Saved token preview:', savedToken.substring(0, 20) + '...');
+        }
+      } else {
+        console.error('[AuthService] ❌ No access token found in response or cookies!');
+        console.error('[AuthService] Response data:', data);
+        console.error('[AuthService] All cookies:', document.cookie);
+        console.error('[AuthService] ⚠️ This will cause authentication issues!');
       }
 
       // Save user info
@@ -276,14 +304,22 @@ export class AuthService {
   }
 
   /**
-   * Extract token from cookies (fallback)
+   * Extract token from cookies (backend sends token as httpOnly cookie)
+   * Note: httpOnly cookies cannot be accessed via JavaScript for security reasons
+   * But we can check if cookie exists and get it from response headers
    */
   private static extractTokenFromCookies(name: string): string | null {
+    // Try to extract from document.cookie (only works for non-httpOnly cookies)
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
     if (parts.length === 2) {
-      return parts.pop()?.split(';').shift() || null;
+      const token = parts.pop()?.split(';').shift() || null;
+      if (token) {
+        console.log(`[AuthService] ✅ Found token in cookies: ${name}`);
+        return token;
+      }
     }
+    console.log(`[AuthService] ⚠️ Token not found in document.cookie (might be httpOnly)`);
     return null;
   }
 

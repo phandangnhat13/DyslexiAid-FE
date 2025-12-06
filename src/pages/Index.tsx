@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { BookOpen, FileText, BarChart3, Headphones, Mic, Sparkles } from "lucide-react";
+import { BookOpen, BarChart3, Headphones, Mic, Sparkles } from "lucide-react";
 
 const Index = () => {
+
   return (
     <div className="min-h-screen">
       <section className="container mx-auto px-4 py-16 text-center animate-fade-in">
