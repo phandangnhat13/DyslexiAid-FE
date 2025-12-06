@@ -51,6 +51,17 @@ export interface AuthResult {
   accessToken?: string;
 }
 
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  code: string;
+  newPassword: string;
+  confirmNewPassword: string;
+}
+
 // ==================== Auth Service ====================
 
 export class AuthService {
@@ -274,6 +285,80 @@ export class AuthService {
       return parts.pop()?.split(';').shift() || null;
     }
     return null;
+  }
+
+  /**
+   * Forgot password - request password reset code
+   */
+  static async forgotPassword(email: string): Promise<AuthResult> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return {
+          success: false,
+          message: errorData.message || 'Gửi yêu cầu thất bại',
+        };
+      }
+
+      const data = await response.json();
+      console.log('✅ Forgot password email sent:', email);
+
+      return {
+        success: true,
+        message: data.message || 'Mã xác thực đã được gửi đến email của bạn',
+      };
+    } catch (error: any) {
+      console.error('❌ Forgot password error:', error);
+      return {
+        success: false,
+        message: error.message || 'Lỗi kết nối đến server',
+      };
+    }
+  }
+
+  /**
+   * Reset password with verification code
+   */
+  static async resetPassword(data: ResetPasswordRequest): Promise<AuthResult> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return {
+          success: false,
+          message: errorData.message || 'Đặt lại mật khẩu thất bại',
+        };
+      }
+
+      const responseData = await response.json();
+      console.log('✅ Password reset successful');
+
+      return {
+        success: true,
+        message: responseData.message || 'Đặt lại mật khẩu thành công',
+      };
+    } catch (error: any) {
+      console.error('❌ Reset password error:', error);
+      return {
+        success: false,
+        message: error.message || 'Lỗi kết nối đến server',
+      };
+    }
   }
 
   /**
