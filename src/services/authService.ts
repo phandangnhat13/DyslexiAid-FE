@@ -62,6 +62,12 @@ export interface ResetPasswordRequest {
   confirmNewPassword: string;
 }
 
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+  confirmNewPassword: string;
+}
+
 // ==================== Auth Service ====================
 
 export class AuthService {
@@ -403,6 +409,53 @@ export class AuthService {
   static getAuthHeaders(): HeadersInit {
     const token = this.getAccessToken();
     return token ? { 'Authorization': `Bearer ${token}` } : {};
+  }
+
+  /**
+   * Change password for authenticated user
+   */
+  static async changePassword(currentPassword: string, newPassword: string, confirmNewPassword: string): Promise<AuthResult> {
+    try {
+      const token = this.getAccessToken();
+      if (!token) {
+        return {
+          success: false,
+          message: 'Bạn chưa đăng nhập',
+        };
+      }
+
+      const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword }),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return {
+          success: false,
+          message: errorData.message || 'Đổi mật khẩu thất bại',
+        };
+      }
+
+      const data = await response.json();
+      console.log('✅ Password changed successfully');
+
+      return {
+        success: true,
+        message: data.message || 'Đổi mật khẩu thành công',
+      };
+    } catch (error: any) {
+      console.error('❌ Change password error:', error);
+      return {
+        success: false,
+        message: error.message || 'Lỗi kết nối đến server',
+      };
+    }
   }
 }
 
