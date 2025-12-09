@@ -207,28 +207,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return { success: false, message: "Không tìm thấy người dùng" };
     }
 
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const users = getUsers();
-    const currentUser = users.find((u) => u.id === user.id);
-
-    if (!currentUser) {
-      return { success: false, message: "Không tìm thấy người dùng" };
+    try {
+      const result = await AuthService.changePassword(currentPassword, newPassword, newPassword);
+      
+      if (result.success) {
+        return { success: true, message: result.message };
+      }
+      
+      return { 
+        success: false, 
+        message: result.message || 'Đổi mật khẩu thất bại' 
+      };
+    } catch (error) {
+      console.error("Change password error:", error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Lỗi kết nối' 
+      };
     }
-
-    // Verify current password
-    if (currentUser.password !== currentPassword) {
-      return { success: false, message: "Mật khẩu hiện tại không đúng" };
-    }
-
-    // Update password
-    const updatedUsers = users.map((u) =>
-      u.id === user.id ? { ...u, password: newPassword } : u
-    );
-    saveUsers(updatedUsers);
-
-    return { success: true };
   };
 
   const logout = async () => {
