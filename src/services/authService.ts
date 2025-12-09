@@ -95,39 +95,46 @@ export class AuthService {
 
       const data: AuthResponse = await response.json();
 
-      // Backend sets token in cookies with name 'access_token'
-      // Extract from cookies first (backend sends it as httpOnly cookie)
-      let accessToken = this.extractTokenFromCookies('access_token');
+      console.log('[AuthService] 🔍 Raw response data:', data);
       
-      // Fallback: check response body (in case backend sends it there too)
-      if (!accessToken && data.accessToken) {
-        accessToken = data.accessToken;
+      // Primary: Use token from response body (backend sends it here)
+      let accessToken = data.accessToken;
+      
+      // Fallback: Try extracting from cookies
+      if (!accessToken) {
+        accessToken = this.extractTokenFromCookies('access_token');
       }
       
-      console.log('[AuthService] Login response data:', {
+      console.log('[AuthService] 🔐 Token extraction results:', {
         hasAccessTokenInResponse: !!data.accessToken,
+        responseTokenPreview: data.accessToken ? data.accessToken.substring(0, 20) + '...' : 'None',
         hasCookieToken: !!this.extractTokenFromCookies('access_token'),
         cookiesAvailable: document.cookie.length > 0,
         allCookies: document.cookie,
-        tokenLength: accessToken?.length,
+        finalTokenLength: accessToken?.length,
+        finalTokenPreview: accessToken ? accessToken.substring(0, 20) + '...' : 'None',
       });
       
       if (accessToken) {
+        console.log('[AuthService] ✅ Token found, saving to localStorage...');
         this.setAccessToken(accessToken);
         console.log('[AuthService] ✅ Token saved to localStorage with key: accessToken');
-        console.log('[AuthService] Token preview:', accessToken.substring(0, 20) + '...');
         
         // Verify token was saved
         const savedToken = localStorage.getItem('accessToken');
-        console.log('[AuthService] Token verification:', savedToken ? '✅ Saved successfully' : '❌ Failed to save');
-        if (savedToken) {
-          console.log('[AuthService] Saved token preview:', savedToken.substring(0, 20) + '...');
+        console.log('[AuthService] 🔍 Verification check:');
+        console.log('  - Token saved successfully:', !!savedToken);
+        console.log('  - Saved token length:', savedToken?.length);
+        console.log('  - Saved token preview:', savedToken ? savedToken.substring(0, 20) + '...' : 'None');
+        
+        if (!savedToken) {
+          console.error('[AuthService] ❌ CRITICAL: Token was not saved to localStorage!');
         }
       } else {
-        console.error('[AuthService] ❌ No access token found in response or cookies!');
-        console.error('[AuthService] Response data:', data);
-        console.error('[AuthService] All cookies:', document.cookie);
-        console.error('[AuthService] ⚠️ This will cause authentication issues!');
+        console.error('[AuthService] ❌ CRITICAL: No access token found anywhere!');
+        console.error('[AuthService] 📋 Full response data:', data);
+        console.error('[AuthService] 🍪 All cookies:', document.cookie);
+        console.error('[AuthService] ⚠️ User will not be able to access protected resources!');
       }
 
       // Save user info

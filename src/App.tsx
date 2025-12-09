@@ -28,49 +28,13 @@ const App = () => (
         <AuthProvider>
           <Navbar />
           <Routes>
-            <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Index />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/read"
-              element={
-                <ProtectedRoute>
-                  <Read />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/recommendations"
-              element={
-                <ProtectedRoute>
-                  <Recommendations />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/practice/:lessonId"
-              element={
-                <ProtectedRoute>
-                  <Practice />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/" element={<Index />} />
+            <Route path="/read" element={<Read />} />
+            <Route path="/recommendations" element={<Recommendations />} />
+            <Route path="/practice/:lessonId" element={<Practice />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route
               path="/profile"
               element={

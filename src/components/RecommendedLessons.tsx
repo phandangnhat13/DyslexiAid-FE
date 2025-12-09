@@ -210,6 +210,7 @@ export const RecommendedLessons = ({
         })}
       </div>
 
+
       {/* Tips */}
       {!compact && (
         <Card className="p-4 bg-muted/30">

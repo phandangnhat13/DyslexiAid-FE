@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { BookOpen, BarChart3, Home, LogOut, User, Sparkles } from "lucide-react";
+import { BookOpen, BarChart3, Home, LogOut, User, Sparkles, LogIn, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AuthModal } from "@/components/AuthModal";
 
 const navItems = [
   { title: "Trang chủ", path: "/", icon: Home },
@@ -24,15 +26,26 @@ export const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, isAuthenticated } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalTab, setAuthModalTab] = useState<'login' | 'register'>('login');
 
   const handleLogout = () => {
     logout();
-    navigate("/login");
+    navigate("/"); // Navigate to home page instead of login page
   };
 
-  // Don't show navbar on login, register, and forgot password pages
+  const handleSignIn = () => {
+    setAuthModalTab('login');
+    setShowAuthModal(true);
+  };
+
+  const handleSignUp = () => {
+    setAuthModalTab('register');
+    setShowAuthModal(true);
+  };
+
+  // Don't show navbar on register and forgot password pages
   if (
-    location.pathname === "/login" ||
     location.pathname === "/register" ||
     location.pathname === "/forgot-password"
   ) {
@@ -86,7 +99,7 @@ export const Navbar = () => {
               })}
             </div>
 
-            {isAuthenticated && user && (
+            {isAuthenticated && user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
@@ -118,10 +131,36 @@ export const Navbar = () => {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            ) : (
+              /* Auth buttons for non-authenticated users */
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  onClick={handleSignIn}
+                  className="gap-2"
+                >
+                  <LogIn className="h-4 w-4" />
+                  <span className="hidden sm:inline">Đăng nhập</span>
+                </Button>
+                <Button 
+                  onClick={handleSignUp}
+                  className="gap-2"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Đăng ký</span>
+                </Button>
+              </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={showAuthModal} 
+        onClose={() => setShowAuthModal(false)}
+        defaultTab={authModalTab}
+      />
     </nav>
   );
 };

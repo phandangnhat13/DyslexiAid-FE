@@ -30,6 +30,29 @@ export interface WordCountRange {
   emoji: string;
 }
 
+// AI Generate Lesson Types
+export interface GenerateLessonRequest {
+  standardScript: string;
+  childScript: string;
+  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+}
+
+export interface ErrorAnalysis {
+  word: string;
+  childRead: string;
+  errorType: string;
+  position: number;
+}
+
+export interface GeneratedLessonResponse {
+  errors: ErrorAnalysis[];
+  suggestedLesson: {
+    title: string;
+    script: string;
+    focusAreas: string[];
+  };
+}
+
 export interface ProgressUpdateResult {
   isCompleted: boolean;
   bestAccuracy: number;
@@ -201,22 +224,32 @@ class LessonServiceClass {
 
   async getRecommendedPractice(): Promise<Lesson[]> {
     try {
-      // Kiểm tra token trước khi gọi API (đúng key: 'accessToken')
+      console.log('🎯 [LessonService] Starting getRecommendedPractice...');
+      
+      // Check token first
       const token = localStorage.getItem('accessToken');
+      console.log('🔐 [LessonService] Token exists:', !!token);
       if (!token) {
-        console.warn('⚠️ No access token found. User might need to login.');
+        console.error('❌ [LessonService] No access token found!');
         return [];
       }
       
-      const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.RECOMMENDED_PRACTICE));
+      const url = getApiUrl(API_CONFIG.ENDPOINTS.RECOMMENDED_PRACTICE);
+      console.log('🌐 [LessonService] API URL:', url);
+      
+      console.log('📡 [LessonService] Making API request...');
+      const response = await this.fetchWithAuth(url);
+      
+      console.log('📨 [LessonService] Response status:', response.status);
+      console.log('📨 [LessonService] Response ok:', response.ok);
       
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
-        console.error(`❌ API Error ${response.status}: ${errorText}`);
+        console.error(`❌ [LessonService] API Error ${response.status}: ${errorText}`);
         
         // If 401 Unauthorized, token might be invalid or expired
         if (response.status === 401 || response.status === 403) {
-          console.warn('⚠️ Authentication error. Token might be invalid or expired.');
+          console.warn('⚠️ [LessonService] Authentication error. Token might be invalid or expired.');
           // Clear invalid token
           localStorage.removeItem('accessToken');
           // Optionally redirect to login (but ProtectedRoute should handle this)
@@ -226,13 +259,55 @@ class LessonServiceClass {
       }
       
       const data = await response.json();
-      console.log('✨ Fetched recommended practice from API:', data.length);
-      return data || [];
+      console.log('✨ [LessonService] Raw API response:', data);
+      console.log('📊 [LessonService] Response type:', typeof data);
+      console.log('📏 [LessonService] Response length:', Array.isArray(data) ? data.length : 'Not array');
+      
+      if (Array.isArray(data)) {
+        console.log('✅ [LessonService] Successfully fetched recommended practice:', data.length, 'lessons');
+        return data;
+      } else {
+        console.warn('⚠️ [LessonService] Response is not an array:', data);
+        return [];
+      }
     } catch (error) {
-      console.error('Error fetching recommended practice:', error);
-      console.error('Error details:', error instanceof Error ? error.message : error);
+      console.error('💥 [LessonService] Error fetching recommended practice:', error);
+      console.error('🔍 [LessonService] Error details:', error instanceof Error ? error.message : error);
+      console.error('📚 [LessonService] Error stack:', error instanceof Error ? error.stack : 'No stack');
       // Fallback: return empty array
       return [];
+    }
+  }
+
+  // Generate lesson using AI based on reading errors
+  async generateLesson(request: GenerateLessonRequest): Promise<GeneratedLessonResponse> {
+    console.log('[LessonService] 🤖 Calling generateLesson API...', request);
+    
+    try {
+      const url = getApiUrl(API_CONFIG.ENDPOINTS.GENERATE_LESSON);
+      console.log('[LessonService] 📡 Making request to:', url);
+      
+      const response = await this.fetchWithAuth(url, {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+      
+      console.log('[LessonService] 📥 Generate lesson response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[LessonService] ❌ Generate lesson failed:', response.status, errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      console.log('[LessonService] ✅ Generated lesson data:', data);
+      
+      return data;
+    } catch (error) {
+      console.error('[LessonService] 💥 generateLesson failed:', error);
+      console.error('[LessonService] 🔍 Error details:', error instanceof Error ? error.message : error);
+      throw error;
     }
   }
 }
