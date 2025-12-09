@@ -4,33 +4,57 @@ import { RecommendedLessons } from "@/components/RecommendedLessons";
 import { getPersonalizedMessage } from "@/utils/lessonRecommendation";
 import LessonService, { type LessonWithProgress, type Lesson } from "@/services/lessonService";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { RecommendationsLoginRequired } from "@/components/LoginRequired";
+import { AuthGuard } from "@/components/AuthGuard";
 
 const Recommendations = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [lessons, setLessons] = useState<LessonWithProgress[]>([]);
   const [recommendedPractice, setRecommendedPractice] = useState<Lesson[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Show login required if not authenticated
+  if (!isAuthenticated) {
+    return <RecommendationsLoginRequired />;
+  }
 
   // Load lessons and recommended practice
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
+      console.log('[Recommendations] 🚀 Starting to load data...');
+      
       try {
+        // Check authentication first
+        const token = localStorage.getItem('accessToken');
+        console.log('[Recommendations] 🔐 Access token exists:', !!token);
+        if (token) {
+          console.log('[Recommendations] 🔐 Token preview:', token.substring(0, 20) + '...');
+        }
+
         // Load lessons with progress for personalized message
+        console.log('[Recommendations] 📚 Loading lessons with progress...');
         const lessonsWithProgress = await LessonService.getLessonsWithProgress();
+        console.log('[Recommendations] ✅ Loaded lessons:', lessonsWithProgress?.length || 0);
         setLessons(lessonsWithProgress);
 
         // Load recommended practice from API
+        console.log('[Recommendations] 🎯 Loading recommended practice...');
         const practiceLessons = await LessonService.getRecommendedPractice();
         console.log('[Recommendations] ✅ Received recommended practice:', practiceLessons?.length || 0, 'lessons');
-        console.log('[Recommendations] Sample lesson:', practiceLessons?.[0]);
+        console.log('[Recommendations] 📋 Full response:', practiceLessons);
+        console.log('[Recommendations] 📝 Sample lesson:', practiceLessons?.[0]);
         setRecommendedPractice(practiceLessons || []);
       } catch (error) {
         console.error('[Recommendations] ❌ Failed to load data:', error);
-        console.error('[Recommendations] Error details:', error instanceof Error ? error.message : error);
+        console.error('[Recommendations] 💥 Error details:', error instanceof Error ? error.message : error);
+        console.error('[Recommendations] 🔍 Error stack:', error instanceof Error ? error.stack : 'No stack');
         setRecommendedPractice([]); // Set empty array on error
       } finally {
         setIsLoading(false);
+        console.log('[Recommendations] 🏁 Loading completed');
       }
     };
 
@@ -89,6 +113,7 @@ const Recommendations = () => {
     navigate(`/practice/${lesson.id}`);
   };
 
+
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-6xl flex items-center justify-center min-h-[60vh]">
@@ -101,8 +126,9 @@ const Recommendations = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="space-y-8 animate-fade-in">
+    <AuthGuard fallback={<RecommendationsLoginRequired />}>
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <div className="space-y-8 animate-fade-in">
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
@@ -150,8 +176,9 @@ const Recommendations = () => {
             )}
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </AuthGuard>
   );
 };
 

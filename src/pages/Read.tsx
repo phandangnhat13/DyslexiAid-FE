@@ -3,12 +3,16 @@ import { Reader } from "@/components/Reader";
 import { Recorder } from "@/components/Recorder";
 import { PracticeRecommendation } from "@/components/PracticeRecommendation";
 import { Flashcard } from "@/components/Flashcard";
+import { GeneratedLessonModal } from "@/components/GeneratedLessonModal";
 import { LessonSelector } from "@/components/LessonSelector";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Trophy, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import LessonService, { Lesson, LessonWithProgress } from "@/services/lessonService";
+import LessonService, { Lesson, LessonWithProgress, GeneratedLessonResponse } from "@/services/lessonService";
+
+import { ReadLoginRequired } from "@/components/LoginRequired";
+import { AuthGuard } from "@/components/AuthGuard";
 
 const Read = () => {
   const [lessons, setLessons] = useState<LessonWithProgress[]>([]);
@@ -19,6 +23,10 @@ const Read = () => {
   const [attemptCount, setAttemptCount] = useState(0);
   const [errorWords, setErrorWords] = useState<string[]>([]);
   const [showFlashcard, setShowFlashcard] = useState(false);
+  const [lastTranscript, setLastTranscript] = useState<string>("");
+  const [isGeneratingLesson, setIsGeneratingLesson] = useState(false);
+  const [generatedLesson, setGeneratedLesson] = useState<GeneratedLessonResponse | null>(null);
+  const [showGeneratedLesson, setShowGeneratedLesson] = useState(false);
   const { toast } = useToast();
   const { isAuthenticated } = useAuth();
 
@@ -171,6 +179,7 @@ const Read = () => {
   const handleRecordingComplete = async (transcript: string, accuracy: number, words: string[]) => {
     setTotalScore((prev) => prev + accuracy);
     setAttemptCount((prev) => prev + 1);
+    setLastTranscript(transcript); // Store transcript for AI generation
     
     // Update error words if accuracy is below 90%
     if (accuracy < 90 && words.length > 0) {
@@ -213,6 +222,81 @@ const Read = () => {
     setShowFlashcard(false);
   };
 
+  const handleStartPracticeExercises = async () => {
+    if (!selectedLesson || !lastTranscript) {
+      toast({
+        title: "Lỗi",
+        description: "Vui lòng luyện đọc trước khi tạo bài tập!",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('📚 Generating practice exercises based on reading errors...');
+    setIsGeneratingLesson(true);
+    
+    try {
+      // Map difficulty to valid API values  
+      let difficulty: 'EASY' | 'MEDIUM' | 'HARD' = 'EASY'; // Default fallback
+      const lessonDifficulty = selectedLesson.difficulty?.toLowerCase?.() || selectedLesson.difficulty;
+      
+      switch (lessonDifficulty) {
+        case 'easy':
+        case 'dễ':
+        case 'DE':
+          difficulty = 'EASY';
+          break;
+        case 'medium':
+        case 'vừa':
+        case 'trung bình':
+        case 'TB':
+          difficulty = 'MEDIUM';
+          break;
+        case 'hard':
+        case 'khó':
+        case 'KH':
+          difficulty = 'HARD';
+          break;
+        default:
+          console.warn('Unknown difficulty:', selectedLesson.difficulty, 'defaulting to EASY');
+          difficulty = 'EASY';
+      }
+
+      const generateRequest = {
+        standardScript: selectedLesson.text,
+        childScript: lastTranscript,
+        difficulty
+      };
+      
+      console.log('🤖 Generating lesson with request:', generateRequest);
+      console.log('📋 Original lesson difficulty:', selectedLesson.difficulty);
+      console.log('📋 Mapped difficulty:', difficulty);
+      
+      const generatedLessonData = await LessonService.generateLesson(generateRequest);
+      console.log('✅ Generated lesson:', generatedLessonData);
+      
+      // Show success toast
+      toast({
+        title: `🎉 Đã tạo bài tập: "${generatedLessonData.suggestedLesson.title}"`,
+        description: `Bài tập tập trung vào: ${generatedLessonData.suggestedLesson.focusAreas.join(', ')}`,
+      });
+      
+      // Open modal with generated lesson
+      setGeneratedLesson(generatedLessonData);
+      setShowGeneratedLesson(true);
+      
+    } catch (error) {
+      console.error('❌ Failed to generate practice exercises:', error);
+      toast({
+        title: "Lỗi",
+        description: "Không thể tạo bài tập lúc này. Vui lòng thử lại sau!",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingLesson(false);
+    }
+  };
+
   const averageScore = attemptCount > 0 ? Math.round(totalScore / attemptCount) : 0;
 
   // Loading state
@@ -242,9 +326,10 @@ const Read = () => {
 
   // Show lesson practice
   return (
-    <div className="relative">
-      <div className="container mx-auto px-4 pt-4 pb-8 max-w-4xl">
-        <div className="space-y-6 animate-fade-in">
+    <AuthGuard fallback={<ReadLoginRequired />}>
+      <div className="relative">
+        <div className="container mx-auto px-4 pt-4 pb-8 max-w-4xl">
+          <div className="space-y-6 animate-fade-in">
         {/* Header with back button */}
         <div className="flex items-center gap-4">
           <Button
@@ -295,6 +380,10 @@ const Read = () => {
           <PracticeRecommendation
             errorWords={errorWords}
             onStartPractice={handleStartPractice}
+            onStartPracticeExercises={handleStartPracticeExercises}
+            isGeneratingLesson={isGeneratingLesson}
+            expectedText={selectedLesson.text}
+            childTranscript={lastTranscript}
           />
         )}
         </div>
@@ -321,7 +410,15 @@ const Read = () => {
           onClose={handleFlashcardClose}
         />
       )}
-    </div>
+
+      {/* Generated Lesson Modal */}
+      <GeneratedLessonModal
+        isOpen={showGeneratedLesson}
+        onClose={() => setShowGeneratedLesson(false)}
+        generatedLesson={generatedLesson}
+      />
+      </div>
+    </AuthGuard>
   );
 };
 

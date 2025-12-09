@@ -7,6 +7,7 @@ export const API_CONFIG = {
     UPDATE_PROGRESS: '/lessons/progress',
     USER_STATS: '/lessons/stats/me',
     RECOMMENDED_PRACTICE: '/lessons/recommended-practice',
+    GENERATE_LESSON: '/ai/generate-lesson',
   },
   TIMEOUT: 10000, // 10 seconds
 };

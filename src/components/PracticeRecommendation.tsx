@@ -6,11 +6,19 @@ import { Sparkles, BookOpen, TrendingUp } from "lucide-react";
 interface PracticeRecommendationProps {
   errorWords: string[];
   onStartPractice: () => void;
+  onStartPracticeExercises?: () => void;
+  isGeneratingLesson?: boolean;
+  expectedText?: string;
+  childTranscript?: string;
 }
 
 export const PracticeRecommendation = ({ 
   errorWords, 
-  onStartPractice 
+  onStartPractice,
+  onStartPracticeExercises,
+  isGeneratingLesson = false,
+  expectedText,
+  childTranscript
 }: PracticeRecommendationProps) => {
   if (errorWords.length === 0) return null;
 
@@ -60,14 +68,38 @@ export const PracticeRecommendation = ({
             </ul>
           </div>
 
-          <Button 
-            onClick={onStartPractice}
-            className="w-full gap-2 shadow-lg hover:shadow-xl transition-all"
-            size="lg"
-          >
-            <Sparkles className="h-5 w-5" />
-            Bắt đầu luyện tập với Flashcard
-          </Button>
+          <div className="flex gap-3 flex-col sm:flex-row">
+            <Button 
+              onClick={onStartPractice}
+              className="flex-1 gap-2 shadow-lg hover:shadow-xl transition-all"
+              size="lg"
+            >
+              <Sparkles className="h-5 w-5" />
+              Bắt đầu luyện tập với Flashcard
+            </Button>
+            
+            {onStartPracticeExercises && expectedText && childTranscript && (
+              <Button 
+                onClick={onStartPracticeExercises}
+                variant="outline"
+                className="flex-1 gap-2 shadow-lg hover:shadow-xl transition-all border-primary/20 hover:bg-primary/10"
+                size="lg"
+                disabled={isGeneratingLesson}
+              >
+                {isGeneratingLesson ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                    Đang tạo bài tập...
+                  </>
+                ) : (
+                  <>
+                    <BookOpen className="h-5 w-5" />
+                    Bài tập luyện tập
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </Card>
