@@ -32,15 +32,13 @@ npm run dev
 
 ### 2. Luyện đọc (/read)
 - **Text-to-Speech**: Nghe máy đọc văn bản với highlight từng từ
-- **Ghi âm**: Ghi lại giọng đọc của trẻ bằng MediaRecorder API
-- **Phản hồi tức thì**: Nhận điểm số và feedback về những từ cần luyện thêm
+- **Ghi âm**: Ghi lại giọng đọc của trẻ 
+- **Phản hồi tức thì**: Nhận điểm số và feedback về những từ cần luyện thêm 
 - **Nhiều văn bản mẫu**: Chọn văn bản khác để luyện tập
 
-### 3. Đơn giản hóa (/simplify)
-- Nhập văn bản phức tạp
-- AI mock đơn giản hóa thành câu dễ hiểu
-- Sao chép kết quả
-- Văn bản mẫu để thử nghiệm
+### 3. Bài tập đề xuất
+- GỢi ý thêm bài tập cho trẻ luyện đọc
+- Đa dạng bài dựa trên tiến trình mà trẻ đã hoàn thành
 
 ### 4. Tiến trình (/dashboard)
 - Biểu đồ line chart hiển thị độ chính xác 7 ngày
@@ -55,8 +53,8 @@ npm run dev
 - **Routing**: React Router v6
 - **Charts**: Recharts
 - **Audio**: 
-  - Web Speech API (Text-to-Speech)
-  - MediaRecorder API (ghi âm)
+  - whisper API (Speech To Text)
+    ...
 
 ## 🤝 Đóng góp
 
