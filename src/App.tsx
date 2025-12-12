@@ -16,7 +16,7 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
-
+import AchievementsPage from "./pages/AchievementsPage";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -35,6 +35,14 @@ const App = () => (
             <Route path="/recommendations" element={<Recommendations />} />
             <Route path="/practice/:lessonId" element={<Practice />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route
+              path="/achievements"
+              element={
+                <ProtectedRoute>
+                  <AchievementsPage /> {/* <--- BỔ SUNG */}
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/profile"
               element={
