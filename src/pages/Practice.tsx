@@ -89,6 +89,18 @@ const Practice = () => {
       try {
         await LessonService.updateProgress(lesson.id, accuracy);
         
+        // 🏆 Ghi nhật ký phiên để kiểm tra thành tựu
+        try {
+          await LessonService.createSessionLog({
+            exercises: 1,
+            score: Math.round(accuracy),
+            progress: Math.round(accuracy),
+          });
+          console.log('🏆 Session log created - checking achievements');
+        } catch (logError) {
+          console.warn('Could not create session log:', logError);
+        }
+        
         toast({
           title: accuracy >= 80 ? "🎉 Tuyệt vời!" : "🌟 Tiếp tục cố gắng!",
           description: `Độ chính xác: ${accuracy.toFixed(1)}%`,

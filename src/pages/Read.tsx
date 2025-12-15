@@ -5,8 +5,11 @@ import { PracticeRecommendation } from "@/components/PracticeRecommendation";
 import { Flashcard } from "@/components/Flashcard";
 import { GeneratedLessonModal } from "@/components/GeneratedLessonModal";
 import { LessonSelector } from "@/components/LessonSelector";
+import { LessonHistory } from "@/components/LessonHistory";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trophy, Loader2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ArrowLeft, Trophy, Loader2, History, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import LessonService, { Lesson, LessonWithProgress, GeneratedLessonResponse } from "@/services/lessonService";
@@ -27,6 +30,7 @@ const Read = () => {
   const [isGeneratingLesson, setIsGeneratingLesson] = useState(false);
   const [generatedLesson, setGeneratedLesson] = useState<GeneratedLessonResponse | null>(null);
   const [showGeneratedLesson, setShowGeneratedLesson] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const { toast } = useToast();
   const { isAuthenticated } = useAuth();
 
@@ -80,11 +84,22 @@ const Read = () => {
     loadLessons();
   }, [isAuthenticated, toast]);
 
-  // Save completed lessons
-  const saveCompletedLesson = async (lessonId: number, accuracy: number) => {
+  // Save completed lessons with transcript and error words
+  const saveCompletedLesson = async (
+    lessonId: number, 
+    accuracy: number,
+    transcript?: string,
+    errorWords?: string[],
+  ) => {
     if (isAuthenticated) {
       try {
-        const result = await LessonService.updateProgress(lessonId, accuracy);
+        const result = await LessonService.updateProgress(
+          lessonId, 
+          accuracy, 
+          transcript,
+          undefined, // duration - could be tracked later
+          errorWords,
+        );
         
         console.log('📊 Progress saved:', result);
         
@@ -103,6 +118,18 @@ const Read = () => {
         // Update completedLessons if newly completed
         if (result.isCompleted && !completedLessons.includes(lessonId)) {
           setCompletedLessons(prev => [...prev, lessonId]);
+        }
+
+        // 🏆 Ghi nhật ký phiên để kiểm tra thành tựu
+        try {
+          await LessonService.createSessionLog({
+            exercises: 1,
+            score: Math.round(accuracy),
+            progress: Math.round(accuracy),
+          });
+          console.log('🏆 Session log created - checking achievements');
+        } catch (logError) {
+          console.warn('Could not create session log:', logError);
         }
         
         return result;
@@ -188,9 +215,14 @@ const Read = () => {
       setErrorWords([]);
     }
 
-    // Save progress to server
+    // Save progress to server with transcript and error words
     if (selectedLesson) {
-      const result = await saveCompletedLesson(selectedLesson.id, accuracy);
+      const result = await saveCompletedLesson(
+        selectedLesson.id, 
+        accuracy, 
+        transcript, 
+        words, // Các từ đọc sai
+      );
       
       // Show toast if newly completed
       if (result?.isCompleted && !completedLessons.includes(selectedLesson.id)) {
@@ -205,6 +237,24 @@ const Read = () => {
           description: `Điểm cao nhất: ${result.bestAccuracy.toFixed(1)}%`,
           duration: 3000,
         });
+      }
+
+      // 🗣️ Phân tích lỗi phát âm (chạy ngầm, không block UI)
+      if (isAuthenticated && transcript && accuracy < 95) {
+        LessonService.analyzePhoneticErrors(selectedLesson.text, transcript)
+          .then((response) => {
+            if (response && response.detectedErrors.length > 0) {
+              console.log('🗣️ Phonetic errors detected:', response.detectedErrors);
+              toast({
+                title: "📝 Đã ghi nhận lỗi phát âm",
+                description: `Phát hiện ${response.detectedErrors.length} loại lỗi. Xem chi tiết trong "Bài tập đề xuất".`,
+                duration: 4000,
+              });
+            }
+          })
+          .catch((error) => {
+            console.warn('Could not analyze phonetic errors:', error);
+          });
       }
     }
   };
@@ -375,6 +425,35 @@ const Read = () => {
           expectedText={selectedLesson.text} 
           onRecordingComplete={handleRecordingComplete}
         />
+
+        {/* Lịch sử làm bài - Collapsible */}
+        {isAuthenticated && (
+          <Collapsible open={showHistory} onOpenChange={setShowHistory}>
+            <Card className="overflow-hidden">
+              <CollapsibleTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="w-full flex items-center justify-between p-4 h-auto hover:bg-muted/50"
+                >
+                  <div className="flex items-center gap-2">
+                    <History className="h-5 w-5 text-primary" />
+                    <span className="font-semibold">Lịch sử làm bài</span>
+                  </div>
+                  {showHistory ? (
+                    <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="border-t">
+                  <LessonHistory lessonId={selectedLesson.id} />
+                </div>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        )}
 
         {errorWords.length > 0 && !showFlashcard && (
           <PracticeRecommendation

@@ -60,6 +60,175 @@ export interface ProgressUpdateResult {
   isNewBest: boolean;
 }
 
+// User Stats - thống kê tổng quan
+export interface UserStats {
+  totalLessons: number;
+  completedLessons: number;
+  totalAttempts: number;
+  averageAccuracy: number;
+  bestAccuracy: number;
+  completionRate: number;
+}
+
+// User Progress - tiến trình từng bài
+export interface UserProgress {
+  id?: number;
+  lessonId: number;
+  lessonTitle?: string;
+  isCompleted: boolean;
+  bestAccuracy: number;
+  attemptCount: number;
+  totalScore?: number;
+  lastAttemptAt: string | null;
+}
+
+// Achievement Types
+export interface AchievementDefinition {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  icon: string | null;
+}
+
+export interface UserAchievement {
+  id: number;
+  dateEarned: string;
+  achievement: AchievementDefinition;
+}
+
+export interface CreateSessionLogDto {
+  exercises: number;
+  score: number;
+  progress: number;
+}
+
+export interface SessionLog {
+  id: number;
+  userId: string;
+  exercises: number;
+  score: number;
+  progress: number;
+  date: string;
+}
+
+// ==================== LESSON ATTEMPT TYPES ====================
+export interface LessonAttempt {
+  id: number;
+  attemptNumber: number;
+  accuracy: number;
+  transcript?: string | null;
+  errorWords?: string[];
+  duration?: number | null;
+  createdAt: string;
+}
+
+// DTO for updating progress with transcript and error words
+export interface UpdateProgressDto {
+  lesson_id: number;
+  accuracy: number;
+  transcript?: string;
+  duration?: number;
+  error_words?: string[];
+}
+
+export interface LessonAttemptSummary {
+  totalAttempts: number;
+  bestAccuracy: number;
+  averageAccuracy: number;
+  isCompleted: boolean;
+  lastAttemptAt?: string | null;
+}
+
+export interface LessonAttemptsResponse {
+  lessonId: number;
+  lessonTitle: string | null;
+  lessonText?: string;
+  lessonDifficulty?: string;
+  attempts: LessonAttempt[];
+  summary: LessonAttemptSummary;
+}
+
+export interface AllAttemptsItem {
+  id: number;
+  lessonId: number;
+  lessonTitle: string;
+  lessonDifficulty: string;
+  accuracy: number;
+  duration?: number | null;
+  createdAt: string;
+}
+
+export interface AllAttemptsResponse {
+  attempts: AllAttemptsItem[];
+  total: number;
+}
+
+// ==================== PHONETIC ERROR TYPES ====================
+export type PhoneticErrorType = 
+  | 'NGONG_L'   // Ngọng L (nhầm N-L)
+  | 'NGONG_R'   // Ngọng R (nhầm R-D/GI)
+  | 'CH_TR'     // Nhầm CH-TR
+  | 'S_X'       // Nhầm S-X
+  | 'GI_D'      // Nhầm GI-D
+  | 'NG_N'      // Nhầm NG-N
+  | 'NH_N'      // Nhầm NH-N
+  | 'QU_K';     // Nhầm QU-K
+
+export interface UserPhoneticError {
+  id: string;
+  user_id: string;
+  error_type: PhoneticErrorType;
+  error_count: number;
+  sample_words: string[];
+  last_detected: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PhoneticLesson {
+  id?: number; // ID từ database (sau khi đã lưu)
+  title: string;
+  difficulty: string;
+  text: string;
+  wordCount: number;
+  description: string;
+}
+
+export interface GeneratePhoneticLessonsResponse {
+  lessons: PhoneticLesson[];
+  message?: string;
+  error?: boolean;
+}
+
+export interface AnalyzePhoneticErrorsRequest {
+  standardScript: string;
+  childScript: string;
+}
+
+export interface DetectedPhoneticError {
+  errorType: PhoneticErrorType;
+  errorCount: number;
+  sampleWords: string[];
+}
+
+export interface AnalyzePhoneticErrorsResponse {
+  message: string;
+  detectedErrors: DetectedPhoneticError[];
+}
+
+// Mapping lỗi phát âm sang tiếng Việt
+export const PHONETIC_ERROR_LABELS: Record<PhoneticErrorType, { name: string; description: string; emoji: string; color: string }> = {
+  NGONG_L: { name: 'Ngọng L', description: 'Nhầm N thành L', emoji: '🔤', color: 'bg-red-100 text-red-800' },
+  NGONG_R: { name: 'Ngọng R', description: 'Nhầm R thành D', emoji: '🗣️', color: 'bg-orange-100 text-orange-800' },
+  CH_TR: { name: 'Nhầm CH-TR', description: 'Nhầm CH thành TR', emoji: '📝', color: 'bg-yellow-100 text-yellow-800' },
+  S_X: { name: 'Nhầm S-X', description: 'Nhầm S thành X', emoji: '✏️', color: 'bg-green-100 text-green-800' },
+  GI_D: { name: 'Nhầm GI-D', description: 'Nhầm GI thành D', emoji: '📖', color: 'bg-teal-100 text-teal-800' },
+  NG_N: { name: 'Nhầm NG-N', description: 'Nhầm NG thành N', emoji: '🎯', color: 'bg-blue-100 text-blue-800' },
+  NH_N: { name: 'Nhầm NH-N', description: 'Nhầm NH thành N', emoji: '🔊', color: 'bg-indigo-100 text-indigo-800' },
+  QU_K: { name: 'Nhầm QU-K', description: 'Nhầm QU thành K', emoji: '💬', color: 'bg-purple-100 text-purple-800' },
+};
+
 // ==================== SERVICE CLASS ====================
 class LessonServiceClass {
   private async fetchWithAuth(url: string, options: RequestInit = {}) {
@@ -146,18 +315,31 @@ class LessonServiceClass {
     }
   }
 
-  async updateProgress(lessonId: number, accuracy: number): Promise<ProgressUpdateResult> {
+  async updateProgress(
+    lessonId: number, 
+    accuracy: number,
+    transcript?: string,
+    duration?: number,
+    errorWords?: string[],
+  ): Promise<ProgressUpdateResult> {
     try {
       const token = localStorage.getItem('accessToken');
       
       if (token) {
         // User is authenticated - save to API
+        const payload: UpdateProgressDto = {
+          lesson_id: lessonId,
+          accuracy: accuracy,
+        };
+        
+        // Add optional fields if provided
+        if (transcript) payload.transcript = transcript;
+        if (duration) payload.duration = duration;
+        if (errorWords && errorWords.length > 0) payload.error_words = errorWords;
+        
         const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.UPDATE_PROGRESS), {
           method: 'POST',
-          body: JSON.stringify({
-            lesson_id: lessonId,
-            accuracy: accuracy,
-          }),
+          body: JSON.stringify(payload),
         });
         
         if (response.ok) {
@@ -279,6 +461,70 @@ class LessonServiceClass {
     }
   }
 
+  // Get user stats (thống kê tổng quan)
+  async getUserStats(): Promise<UserStats> {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.warn('[LessonService] No token for getUserStats');
+        return {
+          totalLessons: 0,
+          completedLessons: 0,
+          totalAttempts: 0,
+          averageAccuracy: 0,
+          bestAccuracy: 0,
+          completionRate: 0,
+        };
+      }
+
+      const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.USER_STATS));
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 [LessonService] User stats fetched:', data);
+        return data;
+      }
+      
+      console.error('[LessonService] Failed to fetch user stats:', response.status);
+      throw new Error('Failed to fetch user stats');
+    } catch (error) {
+      console.error('[LessonService] Error fetching user stats:', error);
+      return {
+        totalLessons: 0,
+        completedLessons: 0,
+        totalAttempts: 0,
+        averageAccuracy: 0,
+        bestAccuracy: 0,
+        completionRate: 0,
+      };
+    }
+  }
+
+  // Get all progress (tiến trình từng bài)
+  async getAllProgress(): Promise<UserProgress[]> {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.warn('[LessonService] No token for getAllProgress');
+        return [];
+      }
+
+      const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.ALL_PROGRESS));
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 [LessonService] All progress fetched:', data.length, 'items');
+        return data;
+      }
+      
+      console.error('[LessonService] Failed to fetch all progress:', response.status);
+      throw new Error('Failed to fetch all progress');
+    } catch (error) {
+      console.error('[LessonService] Error fetching all progress:', error);
+      return [];
+    }
+  }
+
   // Generate lesson using AI based on reading errors
   async generateLesson(request: GenerateLessonRequest): Promise<GeneratedLessonResponse> {
     console.log('[LessonService] 🤖 Calling generateLesson API...', request);
@@ -308,6 +554,219 @@ class LessonServiceClass {
       console.error('[LessonService] 💥 generateLesson failed:', error);
       console.error('[LessonService] 🔍 Error details:', error instanceof Error ? error.message : error);
       throw error;
+    }
+  }
+
+  // ==================== ACHIEVEMENTS ====================
+
+  // Lấy danh sách thành tựu đã đạt được của user
+  async getUserAchievements(): Promise<UserAchievement[]> {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.warn('[LessonService] No token for getUserAchievements');
+        return [];
+      }
+
+      const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.ACHIEVEMENTS));
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('🏆 [LessonService] User achievements fetched:', data);
+        return data;
+      }
+      
+      console.error('[LessonService] Failed to fetch achievements:', response.status);
+      return [];
+    } catch (error) {
+      console.error('[LessonService] Error fetching achievements:', error);
+      return [];
+    }
+  }
+
+  // Ghi nhật ký phiên luyện tập (triggers achievement check)
+  async createSessionLog(sessionData: CreateSessionLogDto): Promise<SessionLog | null> {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.warn('[LessonService] No token for createSessionLog');
+        return null;
+      }
+
+      const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.ACHIEVEMENTS_LOG), {
+        method: 'POST',
+        body: JSON.stringify(sessionData),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📝 [LessonService] Session log created:', data);
+        return data;
+      }
+      
+      console.error('[LessonService] Failed to create session log:', response.status);
+      return null;
+    } catch (error) {
+      console.error('[LessonService] Error creating session log:', error);
+      return null;
+    }
+  }
+
+  // Lấy lịch sử phiên luyện tập
+  async getSessionLogs(): Promise<SessionLog[]> {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.warn('[LessonService] No token for getSessionLogs');
+        return [];
+      }
+
+      const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.ACHIEVEMENTS_LOGS));
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📋 [LessonService] Session logs fetched:', data);
+        return data;
+      }
+      
+      console.error('[LessonService] Failed to fetch session logs:', response.status);
+      return [];
+    } catch (error) {
+      console.error('[LessonService] Error fetching session logs:', error);
+      return [];
+    }
+  }
+
+  // ==================== LESSON ATTEMPTS (HISTORY) ====================
+
+  // Lấy lịch sử làm bài cho một lesson cụ thể
+  async getLessonAttempts(lessonId: number): Promise<LessonAttemptsResponse | null> {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.warn('[LessonService] No token for getLessonAttempts');
+        return null;
+      }
+
+      const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.LESSON_ATTEMPTS(lessonId)));
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📜 [LessonService] Lesson attempts fetched:', data);
+        return data;
+      }
+      
+      console.error('[LessonService] Failed to fetch lesson attempts:', response.status);
+      return null;
+    } catch (error) {
+      console.error('[LessonService] Error fetching lesson attempts:', error);
+      return null;
+    }
+  }
+
+  // Lấy tất cả lịch sử làm bài của user
+  async getAllAttempts(): Promise<AllAttemptsResponse | null> {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.warn('[LessonService] No token for getAllAttempts');
+        return null;
+      }
+
+      const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.ALL_ATTEMPTS));
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📜 [LessonService] All attempts fetched:', data);
+        return data;
+      }
+      
+      console.error('[LessonService] Failed to fetch all attempts:', response.status);
+      return null;
+    } catch (error) {
+      console.error('[LessonService] Error fetching all attempts:', error);
+      return null;
+    }
+  }
+
+  // ==================== PHONETIC ERRORS ====================
+
+  // Lấy danh sách lỗi phát âm của user hiện tại
+  async getUserPhoneticErrors(): Promise<UserPhoneticError[]> {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.warn('[LessonService] No token for getUserPhoneticErrors');
+        return [];
+      }
+
+      const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.PHONETIC_ERRORS_ME));
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('🗣️ [LessonService] User phonetic errors fetched:', data);
+        return data;
+      }
+      
+      console.error('[LessonService] Failed to fetch phonetic errors:', response.status);
+      return [];
+    } catch (error) {
+      console.error('[LessonService] Error fetching phonetic errors:', error);
+      return [];
+    }
+  }
+
+  // Tạo bài học dựa trên lỗi phát âm của user
+  async generatePhoneticLessons(difficulty: string = 'Dễ', count: number = 3): Promise<GeneratePhoneticLessonsResponse> {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.warn('[LessonService] No token for generatePhoneticLessons');
+        return { lessons: [], message: 'Vui lòng đăng nhập' };
+      }
+
+      const url = `${getApiUrl(API_CONFIG.ENDPOINTS.GENERATE_PHONETIC_LESSONS)}?difficulty=${encodeURIComponent(difficulty)}&count=${count}`;
+      const response = await this.fetchWithAuth(url, { method: 'POST' });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📚 [LessonService] Phonetic lessons generated:', data);
+        return data;
+      }
+      
+      console.error('[LessonService] Failed to generate phonetic lessons:', response.status);
+      return { lessons: [], message: 'Không thể tạo bài học lúc này' };
+    } catch (error) {
+      console.error('[LessonService] Error generating phonetic lessons:', error);
+      return { lessons: [], message: 'Đã xảy ra lỗi khi tạo bài học' };
+    }
+  }
+
+  // Phân tích lỗi phát âm từ bài đọc (gọi sau khi user đọc xong)
+  async analyzePhoneticErrors(standardScript: string, childScript: string): Promise<AnalyzePhoneticErrorsResponse | null> {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.warn('[LessonService] No token for analyzePhoneticErrors');
+        return null;
+      }
+
+      const response = await this.fetchWithAuth(getApiUrl(API_CONFIG.ENDPOINTS.ANALYZE_PHONETIC_ERRORS), {
+        method: 'POST',
+        body: JSON.stringify({ standardScript, childScript }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('🔍 [LessonService] Phonetic errors analyzed:', data);
+        return data;
+      }
+      
+      console.error('[LessonService] Failed to analyze phonetic errors:', response.status);
+      return null;
+    } catch (error) {
+      console.error('[LessonService] Error analyzing phonetic errors:', error);
+      return null;
     }
   }
 }

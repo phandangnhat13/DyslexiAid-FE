@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Loader2, TrendingUp, Target, Award, BookOpen } from "lucide-react";
+import { Loader2, TrendingUp, Target, Award, BookOpen, Trophy, Star, Shield, Clock, CheckCircle, Diamond } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/contexts/AuthContext";
-import LessonService, { UserStats, UserProgress } from "@/services/lessonService";
+import LessonService, { UserStats, UserProgress, UserAchievement } from "@/services/lessonService";
+import { LessonHistory } from "./LessonHistory";
 
 interface ChartDataPoint {
   day: string;
@@ -16,12 +17,13 @@ interface ChartDataPoint {
 export const DashboardChart = () => {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [progressList, setProgressList] = useState<UserProgress[]>([]);
+  const [achievements, setAchievements] = useState<UserAchievement[]>([]);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticated } = useAuth();
 
-  // Load user stats and progress from API
+  // Load user stats, progress and achievements from API
   useEffect(() => {
     const loadDashboardData = async () => {
       if (!isAuthenticated) {
@@ -33,14 +35,30 @@ export const DashboardChart = () => {
       setError(null);
 
       try {
-        // Fetch stats and progress in parallel
+        console.log('📊 [Dashboard] Starting to fetch data...');
+        
+        // Fetch stats and progress first
         const [userStats, userProgress] = await Promise.all([
           LessonService.getUserStats(),
           LessonService.getAllProgress(),
         ]);
+        
+        console.log('📊 [Dashboard] Stats:', userStats);
+        console.log('📊 [Dashboard] Progress:', userProgress);
+        
+        // Fetch achievements separately to catch errors
+        let userAchievements: UserAchievement[] = [];
+        try {
+          console.log('🏆 [Dashboard] Fetching achievements...');
+          userAchievements = await LessonService.getUserAchievements();
+          console.log('🏆 [Dashboard] Achievements fetched:', userAchievements);
+        } catch (achievementError) {
+          console.error('🏆 [Dashboard] Failed to fetch achievements:', achievementError);
+        }
 
         setStats(userStats);
         setProgressList(userProgress);
+        setAchievements(userAchievements);
 
         // Generate chart data from recent progress
         const chart = generateChartData(userProgress);
@@ -127,6 +145,24 @@ export const DashboardChart = () => {
   const calculateStreak = (): number => {
     const activeDays = chartData.filter(d => d.sessionsCompleted > 0).length;
     return activeDays;
+  };
+
+  // Map achievement icon code to emoji
+  const getAchievementIcon = (iconCode: string): string => {
+    const iconMap: Record<string, string> = {
+      'trophy-01': '🏆',
+      'star-01': '⭐',
+      'diamond-01': '💎',
+      'check-circle-01': '✅',
+      'fire-03': '🔥',
+      'crown-01': '👑',
+      'medal-01': '🥇',
+      'FIRST_SESSION': '🏆',
+      'FIVE_EXERCISES_IN_ROW': '⭐',
+      'PERFECT_SCORE': '💎',
+      'MASTER_SPEAKER': '✅',
+    };
+    return iconMap[iconCode] || '🎯';
   };
 
   // Loading state
@@ -281,38 +317,27 @@ export const DashboardChart = () => {
         <Card className="p-6">
           <h3 className="text-xl font-semibold mb-4">🏆 Thành tích</h3>
           <div className="space-y-4">
-            {totalSessions >= 10 && (
-              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg border border-primary/20">
-                <div className="text-4xl">🌟</div>
-                <div>
-                  <p className="font-semibold">Người học chăm chỉ</p>
-                  <p className="text-sm text-muted-foreground">Hoàn thành 10 lần luyện tập</p>
+            {achievements.length > 0 ? (
+              achievements.map((item) => (
+                <div 
+                  key={item.id}
+                  className="flex items-center gap-4 p-4 bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg border border-primary/20"
+                >
+                  <div className="text-4xl">
+                    {getAchievementIcon(item.achievement.icon || item.achievement.code)}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-primary">{item.achievement.name}</p>
+                    <p className="text-sm text-muted-foreground">{item.achievement.description}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">
+                      🗓️ {new Date(item.dateEarned).toLocaleDateString('vi-VN')}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {averageAccuracy >= 90 && (
-              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-success/10 to-success/5 rounded-lg border border-success/20">
-                <div className="text-4xl">🏆</div>
-                <div>
-                  <p className="font-semibold">Tiến bộ vượt bậc</p>
-                  <p className="text-sm text-muted-foreground">Đạt trên 90% độ chính xác</p>
-                </div>
-              </div>
-            )}
-
-            {(stats?.completedLessons || 0) >= 5 && (
-              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-secondary/10 to-secondary/5 rounded-lg border border-secondary/20">
-                <div className="text-4xl">📚</div>
-                <div>
-                  <p className="font-semibold">Người đọc nhiều</p>
-                  <p className="text-sm text-muted-foreground">Hoàn thành {stats?.completedLessons} bài học</p>
-                </div>
-              </div>
-            )}
-
-            {totalSessions === 0 && (
+              ))
+            ) : (
               <div className="text-center py-8 text-muted-foreground">
+                <Trophy className="h-12 w-12 mx-auto mb-3 opacity-30" />
                 <p>Chưa có thành tích nào.</p>
                 <p className="text-sm">Hãy bắt đầu luyện đọc để nhận thành tích!</p>
               </div>
@@ -350,6 +375,9 @@ export const DashboardChart = () => {
           </div>
         </Card>
       </div>
+
+      {/* Lesson History */}
+      <LessonHistory compact={true} />
 
       {/* Tips */}
       <Card className="p-6 bg-gradient-to-r from-accent/10 to-accent/5 border-accent/20">
